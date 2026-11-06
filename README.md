@@ -48,8 +48,6 @@ HA MQTT Bridge 是一个基于 Node-RED 的协议网关。它将 Home Assistant 
 
 ![HA MQTT Bridge 的配置、实体发现、状态同步、命令与回执流程](docs/assets/flow-layout.svg)
 
-*根据公开导出 flow 绘制的布局示意，非现场运行截图。图内标签使用英文，中英文 README 共用同一份图片。*
-
 ## 支持类型
 
 | 类型 | 通用控制能力 |

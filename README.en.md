@@ -48,8 +48,6 @@ Entity discovery, state synchronization, command handling, and result reporting 
 
 ![Configuration, discovery, state synchronization, and command/result paths in HA MQTT Bridge](docs/assets/flow-layout.svg)
 
-*Layout illustration generated from the public exported flow, not a live deployment screenshot. Both READMEs use the same diagram with English labels.*
-
 ## Supported Domains
 
 | Domain | General control mappings |

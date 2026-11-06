@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1460" height="750" viewBox="0 0 1460 750" role="img" aria-labelledby="title desc">
 <title id="title">HA MQTT Bridge flow layout</title>
-<desc id="desc">A layout illustration generated from the public flow: configuration, discovery, state synchronization, and commands with responses. Not a live deployment screenshot.</desc>
+<desc id="desc">Configuration, entity discovery, state synchronization, and commands with responses in the HA MQTT Bridge flow.</desc>
 <defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#edf0f3" stroke-width="1"/></pattern></defs>
 <rect x="1" y="1" width="1458" height="748" rx="5" fill="#fff" stroke="#d0d7de"/>
 <path d="M6 1h1448a5 5 0 0 1 5 5v39H1V6a5 5 0 0 1 5-5" fill="#f6f8fa"/>
