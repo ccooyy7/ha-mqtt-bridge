@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+.env
+.env.*
+!.env.example
+data/
+private/
+archives/
+dist/
+coverage/
+*.log
+*_cred.json
+*.pem
+*.key
+config/*.local.*

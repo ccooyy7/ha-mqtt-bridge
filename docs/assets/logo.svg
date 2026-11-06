@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 60 60" role="img" aria-labelledby="title">
+  <title id="title">HA MQTT Bridge</title>
+  <rect x="1" y="1" width="58" height="58" rx="12" fill="#e7f4ee"/>
+  <path d="M12 31h36M18 40V21M42 40V21M18 29c8-15 16-15 24 0" stroke="#18805b" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <circle cx="12" cy="31" r="3" fill="#18805b"/><circle cx="48" cy="31" r="3" fill="#18805b"/>
+</svg>

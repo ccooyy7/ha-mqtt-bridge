@@ -1,0 +1,17 @@
+{
+  "name": "ha-mqtt-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A configurable Node-RED bridge between Home Assistant entities and MQTT.",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build:flow": "node scripts/build-flow.mjs",
+    "build:assets": "node scripts/build-readme-assets.mjs",
+    "validate": "node scripts/validate-flow.mjs",
+    "test": "node scripts/run-tests.mjs && node --test tests/*.test.mjs",
+    "check:release": "node scripts/check-release.mjs",
+    "check": "npm run build:flow && npm run build:assets && npm run validate && npm test && npm run check:release"
+  }
+}

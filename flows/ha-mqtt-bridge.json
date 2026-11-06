@@ -1,0 +1,464 @@
+[
+  {
+    "id": "ha_mqtt_gateway_tab",
+    "type": "tab",
+    "label": "HA MQTT Bridge",
+    "disabled": false,
+    "info": ""
+  },
+  {
+    "id": "mqtt_broker_local",
+    "type": "mqtt-broker",
+    "name": "Local Mosquitto",
+    "broker": "core-mosquitto",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "birthTopic": "gw/home/gateway/availability",
+    "birthQos": "1",
+    "birthPayload": "online",
+    "birthMsg": {},
+    "closeTopic": "gw/home/gateway/availability",
+    "closeQos": "1",
+    "closePayload": "offline",
+    "closeMsg": {},
+    "willTopic": "gw/home/gateway/availability",
+    "willQos": "1",
+    "willPayload": "offline",
+    "willMsg": {},
+    "sessionExpiry": ""
+  },
+  {
+    "id": "ha_server_local",
+    "type": "server",
+    "name": "Home Assistant",
+    "version": 5,
+    "addon": true,
+    "rejectUnauthorizedCerts": true,
+    "ha_boolean": "y|yes|true|on|home|open",
+    "connectionDelay": true,
+    "cacheJson": true,
+    "heartbeat": false,
+    "heartbeatInterval": "30",
+    "areaSelector": "friendlyName",
+    "deviceSelector": "friendlyName",
+    "entitySelector": "friendlyName",
+    "statusSeparator": ": ",
+    "statusYear": "numeric",
+    "statusMonth": "short",
+    "statusDay": "numeric",
+    "statusHourCycle": "h23",
+    "statusTimeFormat": "h:m"
+  },
+  {
+    "id": "comment_setup",
+    "type": "comment",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Setup: select entities in Gateway config; configure HA and MQTT, deploy, initialize and discover.",
+    "info": "",
+    "x": 470,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "inject_gateway_config",
+    "type": "inject",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Init gateway config",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "0.5",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 150,
+    "y": 100,
+    "wires": [
+      [
+        "fn_gateway_config"
+      ]
+    ]
+  },
+  {
+    "id": "fn_gateway_config",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Gateway config",
+    "func": "// Complete content of the Node-RED \"Gateway config\" Function.\n// Manual mode with an empty list exposes no entities.\nconst gatewayConfig = {\n    site: \"home\",\n    topicPrefix: \"gw\",\n    exposureMode: \"manual\",\n    topicMode: \"entity_id\",\n    coreDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"sensor\", \"switch\"],\n    writableDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"switch\"],\n    entities: [],\n    entityAllowlist: [],\n    entityBlocklist: [],\n    aliases: {},\n    units: {},\n    stateFields: {\n        light: [\"brightness_pct\", \"color_temp_kelvin\", \"friendly_name\"],\n        switch: [\"friendly_name\"],\n        input_boolean: [\"friendly_name\"],\n        input_button: [\"friendly_name\"],\n        scene: [\"friendly_name\"],\n        sensor: [\"friendly_name\", \"unit_of_measurement\"],\n        cover: [\"current_position\", \"friendly_name\"],\n        fan: [\"percentage\", \"preset_mode\", \"friendly_name\"],\n        climate: [\"current_temperature\", \"target_temperature\", \"hvac_mode\", \"hvac_action\", \"fan_mode\", \"preset_mode\", \"friendly_name\"]\n    },\n    retain: { meta: true, state: true, availability: true, ack: false, result: false }\n};\nflow.set(\"gatewayConfig\", gatewayConfig);\nnode.status({ fill: \"green\", shape: \"dot\", text: \"gateway config loaded\" });\nreturn null;\n",
+    "outputs": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 370,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "comment_discovery",
+    "type": "comment",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Discovery: read HA cache and publish retained meta/state/availability for exposed entities.",
+    "info": "",
+    "x": 330,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "inject_discovery",
+    "type": "inject",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Discover entities on deploy and every 10 min",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "600",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 190,
+    "y": 220,
+    "wires": [
+      [
+        "fn_prepare_discovery"
+      ]
+    ]
+  },
+  {
+    "id": "fn_prepare_discovery",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Build meta/state/availability messages",
+    "func": "\nconst DEFAULT_CONFIG = {\n    site: \"home\",\n    topicPrefix: \"gw\",\n    exposureMode: \"manual\",\n    topicMode: \"entity_id\",\n    coreDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"sensor\", \"switch\"],\n    writableDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"switch\"],\n    entities: [],\n    entityAllowlist: [],\n    entityBlocklist: [],\n    aliases: {},\n    units: {},\n    stateFields: {\n        light: [\"brightness_pct\", \"color_temp_kelvin\", \"friendly_name\"],\n        switch: [\"friendly_name\"],\n        input_boolean: [\"friendly_name\"],\n        input_button: [\"friendly_name\"],\n        scene: [\"friendly_name\"],\n        sensor: [\"friendly_name\", \"unit_of_measurement\"],\n        cover: [\"current_position\", \"friendly_name\"],\n        fan: [\"percentage\", \"preset_mode\", \"friendly_name\"],\n        climate: [\"current_temperature\", \"target_temperature\", \"hvac_mode\", \"hvac_action\", \"fan_mode\", \"preset_mode\", \"friendly_name\"]\n    },\n    retain: { meta: true, state: true, availability: true, ack: false, result: false }\n};\nconst config = { ...DEFAULT_CONFIG, ...(flow.get(\"gatewayConfig\") || {}) };\nconfig.retain = { ...DEFAULT_CONFIG.retain, ...(config.retain || {}) };\nconfig.stateFields = { ...DEFAULT_CONFIG.stateFields, ...(config.stateFields || {}) };\nfunction splitEntityId(entityId) {\n    const parts = String(entityId || \"\").split(\".\");\n    if (parts.length < 2 || !parts[0] || !parts.slice(1).join(\".\")) throw new Error(\"Invalid entity_id: \" + entityId);\n    return { domain: parts[0], objectId: parts.slice(1).join(\".\") };\n}\nfunction exposed(entityId) {\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.exposureMode === \"manual\") {\n        return config.entities.some((entity) => entity.entity_id === entityId && entity.enabled !== false);\n    }\n    if (config.exposureMode !== \"domains\") return false;\n    const { domain } = splitEntityId(entityId);\n    if (!config.coreDomains.includes(domain)) return false;\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.entityAllowlist.length > 0) return config.entityAllowlist.includes(entityId);\n    return true;\n}\nfunction baseTopic(entityId) {\n    if (config.topicMode === \"entity_id\") {\n        return config.topicPrefix + \"/\" + config.site + \"/entity/\" + entityId;\n    }\n    const { domain, objectId } = splitEntityId(entityId);\n    const entityConfig = getEntityConfig(entityId);\n    const slug = entityConfig && entityConfig.topic ? entityConfig.topic : (config.aliases[entityId] || objectId);\n    return config.topicPrefix + \"/\" + config.site + \"/\" + domain + \"/\" + slug;\n}\nfunction getEntityConfig(entityId) {\n    return (config.entities || []).find((entity) => entity.entity_id === entityId && entity.enabled !== false) || null;\n}\nfunction commandsForDomain(domain) {\n    if (domain === \"light\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"switch\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"input_boolean\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"cover\") return [\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"];\n    if (domain === \"fan\") return [\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"];\n    if (domain === \"input_button\") return [\"press\"];\n    if (domain === \"scene\") return [\"turn_on\"];\n    if (domain === \"climate\") return [\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"];\n    return [];\n}\nfunction assertCommandAllowed(entityId, command) {\n    if (!exposed(entityId)) throw new Error(\"Entity is not exposed: \" + entityId);\n    const { domain } = splitEntityId(entityId);\n    const entity = getEntityConfig(entityId);\n    const writable = entity && entity.writable !== undefined ? entity.writable : config.writableDomains.includes(domain);\n    if (!writable) throw new Error(\"Entity is read-only: \" + entityId);\n    const allowed = (entity && entity.commands) || commandsForDomain(domain);\n    if (!allowed.includes(command) || !commandsForDomain(domain).includes(command)) throw new Error(\"Command is not allowed: \" + command);\n}\nfunction metaPayload(state) {\n    const entityId = state.entity_id;\n    const { domain, objectId } = splitEntityId(entityId);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(entityId);\n    const writable = entityConfig && entityConfig.writable !== undefined ? entityConfig.writable : config.writableDomains.includes(domain);\n    return {\n        entity_id: entityId,\n        domain,\n        object_id: objectId,\n        topic_base: baseTopic(entityId),\n        name: (entityConfig && entityConfig.name) || attributes.friendly_name || entityId,\n        writable,\n        unit_of_measurement: config.units[entityId] || attributes.unit_of_measurement || null,\n        device_class: attributes.device_class || null,\n        state_class: attributes.state_class || null,\n        supported_features: attributes.supported_features || 0,\n        commands: writable ? ((entityConfig && entityConfig.commands) || commandsForDomain(domain)).filter(command => commandsForDomain(domain).includes(command)) : []\n    };\n}\nfunction statePayload(state) {\n    const { domain } = splitEntityId(state.entity_id);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(state.entity_id);\n    const fields = (entityConfig && entityConfig.state_fields) || config.stateFields[domain];\n    const selected = {};\n    if (fields) {\n        fields.forEach((field) => {\n            if (field === \"brightness_pct\") {\n                selected[field] = attributes.brightness === undefined || attributes.brightness === null\n                    ? null\n                    : Math.round((Number(attributes.brightness) / 255) * 100);\n            } else if (field === \"target_temperature\") {\n                selected[field] = attributes.temperature === undefined ? null : attributes.temperature;\n            } else if (field === \"hvac_mode\") {\n                selected[field] = state.state === undefined ? null : state.state;\n            } else {\n                selected[field] = attributes[field] === undefined ? null : attributes[field];\n            }\n        });\n    } else {\n        Object.assign(selected, attributes);\n    }\n    return {\n        entity_id: state.entity_id,\n        state: state.state,\n        ...selected,\n        unit_of_measurement: config.units[state.entity_id] || attributes.unit_of_measurement || null,\n        last_changed: state.last_changed || null,\n        last_updated: state.last_updated || null,\n        updated_at: new Date().toISOString()\n    };\n}\nfunction availabilityPayload(state) {\n    return state && state.state !== \"unavailable\" ? \"online\" : \"offline\";\n}\nfunction resultPayload(requestId, entityId, status, extra) {\n    return { request_id: requestId, entity_id: entityId, status, ts: new Date().toISOString(), ...(extra || {}) };\n}\nfunction filterDefined(value) {\n    const out = {};\n    Object.keys(value).forEach((key) => {\n        if (value[key] !== undefined) out[key] = value[key];\n    });\n    return out;\n}\nfunction validateRange(value, name, min, max) {\n    if (value === undefined) return;\n    if (typeof value !== \"number\" || !Number.isFinite(value) || value < min || value > max) throw new Error(name + \" must be a number between \" + min + \" and \" + max);\n}\nfunction buildServiceCall(entityId, command, params) {\n    const { domain } = splitEntityId(entityId);\n    params = params || {};\n    if (domain === \"light\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported light command: \" + command);\n        const data = filterDefined({ entity_id: entityId, brightness: params.brightness, brightness_pct: params.brightness_pct, color_temp_kelvin: params.color_temp_kelvin, rgb_color: params.rgb_color, transition: params.transition });\n        validateRange(data.brightness, \"brightness\", 0, 255);\n        validateRange(data.brightness_pct, \"brightness_pct\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"switch\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported switch command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"input_boolean\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported input_boolean command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"cover\") {\n        if (![\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"].includes(command)) throw new Error(\"Unsupported cover command: \" + command);\n        const data = filterDefined({ entity_id: entityId, position: params.position });\n        validateRange(data.position, \"position\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"fan\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"].includes(command)) throw new Error(\"Unsupported fan command: \" + command);\n        const data = filterDefined({ entity_id: entityId, percentage: params.percentage, preset_mode: params.preset_mode });\n        validateRange(data.percentage, \"percentage\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"input_button\") {\n        if (command !== \"press\") throw new Error(\"Unsupported input_button command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"scene\") {\n        if (command !== \"turn_on\") throw new Error(\"Unsupported scene command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"climate\") {\n        if (![\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"].includes(command)) throw new Error(\"Unsupported climate command: \" + command);\n        return { domain, service: command, data: filterDefined({ entity_id: entityId, temperature: params.temperature, target_temp_high: params.target_temp_high, target_temp_low: params.target_temp_low, hvac_mode: params.hvac_mode, preset_mode: params.preset_mode, fan_mode: params.fan_mode }) };\n    }\n    throw new Error(domain + \" is read-only or unsupported for commands\");\n}\n\nconst states = Array.isArray(msg.payload)\n    ? msg.payload\n    : Object.values(global.get(\"homeassistant.homeAssistant.states\") || {});\nlet count = 0;\nfor (const state of states) {\n    if (!state || !state.entity_id) continue;\n    try {\n        if (!exposed(state.entity_id)) continue;\n        const topic = baseTopic(state.entity_id);\n        node.send({ topic: topic + \"/meta\", payload: metaPayload(state), retain: config.retain.meta, qos: 1 });\n        node.send({ topic: topic + \"/state\", payload: statePayload(state), retain: config.retain.state, qos: 1 });\n        node.send({ topic: topic + \"/availability\", payload: availabilityPayload(state), retain: config.retain.availability, qos: 1 });\n        count += 1;\n    } catch (error) {\n        node.warn(error.message);\n    }\n}\nnode.status({ fill: count > 0 ? \"green\" : \"yellow\", shape: \"dot\", text: \"published \" + count + \" entities\" });\nreturn null;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 500,
+    "y": 220,
+    "wires": [
+      [
+        "fn_normalize_discovery_mqtt"
+      ]
+    ]
+  },
+  {
+    "id": "fn_normalize_discovery_mqtt",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Normalize discovery MQTT message",
+    "func": "let outbound = msg;\nif (!outbound.topic && outbound.payload && outbound.payload.topic) {\n    outbound = {\n        ...outbound.payload,\n        _msgid: msg._msgid\n    };\n}\nif (typeof outbound.topic !== \"string\" || outbound.topic.length === 0) {\n    node.warn(\"Dropping discovery message without topic: \" + JSON.stringify(outbound).slice(0, 500));\n    return null;\n}\nif (outbound.topic.includes(\"+\") || outbound.topic.includes(\"#\")) {\n    node.warn(\"Dropping discovery message with wildcard topic: \" + outbound.topic);\n    return null;\n}\nnode.status({ fill: \"green\", shape: \"dot\", text: outbound.topic });\nreturn outbound;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 770,
+    "y": 220,
+    "wires": [
+      [
+        "mqtt_meta"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_meta",
+    "type": "mqtt out",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Publish discovery messages",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt_broker_local",
+    "x": 1040,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "comment_state",
+    "type": "comment",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "State sync: every HA state_changed event becomes retained MQTT state + availability.",
+    "info": "",
+    "x": 350,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "ha_events_state_changed",
+    "type": "server-events",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "HA state_changed events",
+    "server": "ha_server_local",
+    "version": 3,
+    "eventType": "state_changed",
+    "exposeAsEntityConfig": "",
+    "eventData": "",
+    "waitForRunning": true,
+    "outputProperties": [
+      {
+        "property": "payload",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "eventData"
+      }
+    ],
+    "x": 160,
+    "y": 360,
+    "wires": [
+      [
+        "fn_prepare_state"
+      ]
+    ]
+  },
+  {
+    "id": "fn_prepare_state",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Build state MQTT messages",
+    "func": "\nconst DEFAULT_CONFIG = {\n    site: \"home\",\n    topicPrefix: \"gw\",\n    exposureMode: \"manual\",\n    topicMode: \"entity_id\",\n    coreDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"sensor\", \"switch\"],\n    writableDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"switch\"],\n    entities: [],\n    entityAllowlist: [],\n    entityBlocklist: [],\n    aliases: {},\n    units: {},\n    stateFields: {\n        light: [\"brightness_pct\", \"color_temp_kelvin\", \"friendly_name\"],\n        switch: [\"friendly_name\"],\n        input_boolean: [\"friendly_name\"],\n        input_button: [\"friendly_name\"],\n        scene: [\"friendly_name\"],\n        sensor: [\"friendly_name\", \"unit_of_measurement\"],\n        cover: [\"current_position\", \"friendly_name\"],\n        fan: [\"percentage\", \"preset_mode\", \"friendly_name\"],\n        climate: [\"current_temperature\", \"target_temperature\", \"hvac_mode\", \"hvac_action\", \"fan_mode\", \"preset_mode\", \"friendly_name\"]\n    },\n    retain: { meta: true, state: true, availability: true, ack: false, result: false }\n};\nconst config = { ...DEFAULT_CONFIG, ...(flow.get(\"gatewayConfig\") || {}) };\nconfig.retain = { ...DEFAULT_CONFIG.retain, ...(config.retain || {}) };\nconfig.stateFields = { ...DEFAULT_CONFIG.stateFields, ...(config.stateFields || {}) };\nfunction splitEntityId(entityId) {\n    const parts = String(entityId || \"\").split(\".\");\n    if (parts.length < 2 || !parts[0] || !parts.slice(1).join(\".\")) throw new Error(\"Invalid entity_id: \" + entityId);\n    return { domain: parts[0], objectId: parts.slice(1).join(\".\") };\n}\nfunction exposed(entityId) {\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.exposureMode === \"manual\") {\n        return config.entities.some((entity) => entity.entity_id === entityId && entity.enabled !== false);\n    }\n    if (config.exposureMode !== \"domains\") return false;\n    const { domain } = splitEntityId(entityId);\n    if (!config.coreDomains.includes(domain)) return false;\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.entityAllowlist.length > 0) return config.entityAllowlist.includes(entityId);\n    return true;\n}\nfunction baseTopic(entityId) {\n    if (config.topicMode === \"entity_id\") {\n        return config.topicPrefix + \"/\" + config.site + \"/entity/\" + entityId;\n    }\n    const { domain, objectId } = splitEntityId(entityId);\n    const entityConfig = getEntityConfig(entityId);\n    const slug = entityConfig && entityConfig.topic ? entityConfig.topic : (config.aliases[entityId] || objectId);\n    return config.topicPrefix + \"/\" + config.site + \"/\" + domain + \"/\" + slug;\n}\nfunction getEntityConfig(entityId) {\n    return (config.entities || []).find((entity) => entity.entity_id === entityId && entity.enabled !== false) || null;\n}\nfunction commandsForDomain(domain) {\n    if (domain === \"light\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"switch\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"input_boolean\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"cover\") return [\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"];\n    if (domain === \"fan\") return [\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"];\n    if (domain === \"input_button\") return [\"press\"];\n    if (domain === \"scene\") return [\"turn_on\"];\n    if (domain === \"climate\") return [\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"];\n    return [];\n}\nfunction assertCommandAllowed(entityId, command) {\n    if (!exposed(entityId)) throw new Error(\"Entity is not exposed: \" + entityId);\n    const { domain } = splitEntityId(entityId);\n    const entity = getEntityConfig(entityId);\n    const writable = entity && entity.writable !== undefined ? entity.writable : config.writableDomains.includes(domain);\n    if (!writable) throw new Error(\"Entity is read-only: \" + entityId);\n    const allowed = (entity && entity.commands) || commandsForDomain(domain);\n    if (!allowed.includes(command) || !commandsForDomain(domain).includes(command)) throw new Error(\"Command is not allowed: \" + command);\n}\nfunction metaPayload(state) {\n    const entityId = state.entity_id;\n    const { domain, objectId } = splitEntityId(entityId);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(entityId);\n    const writable = entityConfig && entityConfig.writable !== undefined ? entityConfig.writable : config.writableDomains.includes(domain);\n    return {\n        entity_id: entityId,\n        domain,\n        object_id: objectId,\n        topic_base: baseTopic(entityId),\n        name: (entityConfig && entityConfig.name) || attributes.friendly_name || entityId,\n        writable,\n        unit_of_measurement: config.units[entityId] || attributes.unit_of_measurement || null,\n        device_class: attributes.device_class || null,\n        state_class: attributes.state_class || null,\n        supported_features: attributes.supported_features || 0,\n        commands: writable ? ((entityConfig && entityConfig.commands) || commandsForDomain(domain)).filter(command => commandsForDomain(domain).includes(command)) : []\n    };\n}\nfunction statePayload(state) {\n    const { domain } = splitEntityId(state.entity_id);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(state.entity_id);\n    const fields = (entityConfig && entityConfig.state_fields) || config.stateFields[domain];\n    const selected = {};\n    if (fields) {\n        fields.forEach((field) => {\n            if (field === \"brightness_pct\") {\n                selected[field] = attributes.brightness === undefined || attributes.brightness === null\n                    ? null\n                    : Math.round((Number(attributes.brightness) / 255) * 100);\n            } else if (field === \"target_temperature\") {\n                selected[field] = attributes.temperature === undefined ? null : attributes.temperature;\n            } else if (field === \"hvac_mode\") {\n                selected[field] = state.state === undefined ? null : state.state;\n            } else {\n                selected[field] = attributes[field] === undefined ? null : attributes[field];\n            }\n        });\n    } else {\n        Object.assign(selected, attributes);\n    }\n    return {\n        entity_id: state.entity_id,\n        state: state.state,\n        ...selected,\n        unit_of_measurement: config.units[state.entity_id] || attributes.unit_of_measurement || null,\n        last_changed: state.last_changed || null,\n        last_updated: state.last_updated || null,\n        updated_at: new Date().toISOString()\n    };\n}\nfunction availabilityPayload(state) {\n    return state && state.state !== \"unavailable\" ? \"online\" : \"offline\";\n}\nfunction resultPayload(requestId, entityId, status, extra) {\n    return { request_id: requestId, entity_id: entityId, status, ts: new Date().toISOString(), ...(extra || {}) };\n}\nfunction filterDefined(value) {\n    const out = {};\n    Object.keys(value).forEach((key) => {\n        if (value[key] !== undefined) out[key] = value[key];\n    });\n    return out;\n}\nfunction validateRange(value, name, min, max) {\n    if (value === undefined) return;\n    if (typeof value !== \"number\" || !Number.isFinite(value) || value < min || value > max) throw new Error(name + \" must be a number between \" + min + \" and \" + max);\n}\nfunction buildServiceCall(entityId, command, params) {\n    const { domain } = splitEntityId(entityId);\n    params = params || {};\n    if (domain === \"light\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported light command: \" + command);\n        const data = filterDefined({ entity_id: entityId, brightness: params.brightness, brightness_pct: params.brightness_pct, color_temp_kelvin: params.color_temp_kelvin, rgb_color: params.rgb_color, transition: params.transition });\n        validateRange(data.brightness, \"brightness\", 0, 255);\n        validateRange(data.brightness_pct, \"brightness_pct\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"switch\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported switch command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"input_boolean\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported input_boolean command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"cover\") {\n        if (![\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"].includes(command)) throw new Error(\"Unsupported cover command: \" + command);\n        const data = filterDefined({ entity_id: entityId, position: params.position });\n        validateRange(data.position, \"position\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"fan\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"].includes(command)) throw new Error(\"Unsupported fan command: \" + command);\n        const data = filterDefined({ entity_id: entityId, percentage: params.percentage, preset_mode: params.preset_mode });\n        validateRange(data.percentage, \"percentage\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"input_button\") {\n        if (command !== \"press\") throw new Error(\"Unsupported input_button command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"scene\") {\n        if (command !== \"turn_on\") throw new Error(\"Unsupported scene command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"climate\") {\n        if (![\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"].includes(command)) throw new Error(\"Unsupported climate command: \" + command);\n        return { domain, service: command, data: filterDefined({ entity_id: entityId, temperature: params.temperature, target_temp_high: params.target_temp_high, target_temp_low: params.target_temp_low, hvac_mode: params.hvac_mode, preset_mode: params.preset_mode, fan_mode: params.fan_mode }) };\n    }\n    throw new Error(domain + \" is read-only or unsupported for commands\");\n}\n\nconst eventData = msg.payload && msg.payload.event ? msg.payload.event : msg.payload;\nconst state = eventData && eventData.new_state ? eventData.new_state : msg.payload;\nif (!state || !state.entity_id || !exposed(state.entity_id)) return null;\nconst topic = baseTopic(state.entity_id);\nnode.send([\n    { topic: topic + \"/state\", payload: statePayload(state), retain: config.retain.state, qos: 1 },\n    { topic: topic + \"/availability\", payload: availabilityPayload(state), retain: config.retain.availability, qos: 1 }\n]);\nnode.status({ fill: \"green\", shape: \"dot\", text: state.entity_id + \" -> \" + state.state });\nreturn null;",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 360,
+    "wires": [
+      [
+        "mqtt_state"
+      ],
+      [
+        "mqtt_availability"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_state",
+    "type": "mqtt out",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Publish state",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "broker": "mqtt_broker_local",
+    "x": 700,
+    "y": 340,
+    "wires": []
+  },
+  {
+    "id": "mqtt_availability",
+    "type": "mqtt out",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Publish availability",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "broker": "mqtt_broker_local",
+    "x": 720,
+    "y": 390,
+    "wires": []
+  },
+  {
+    "id": "comment_command",
+    "type": "comment",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Commands: third party publishes .../set; gateway emits ack, calls HA service, then emits result.",
+    "info": "",
+    "x": 400,
+    "y": 460,
+    "wires": []
+  },
+  {
+    "id": "mqtt_command_in",
+    "type": "mqtt in",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Command input {prefix}/{site}/+/+/set",
+    "topic": "+/+/+/+/set",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt_broker_local",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 520,
+    "wires": [
+      [
+        "fn_prepare_command"
+      ]
+    ]
+  },
+  {
+    "id": "fn_prepare_command",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Validate command and build service call",
+    "func": "\nconst DEFAULT_CONFIG = {\n    site: \"home\",\n    topicPrefix: \"gw\",\n    exposureMode: \"manual\",\n    topicMode: \"entity_id\",\n    coreDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"sensor\", \"switch\"],\n    writableDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"switch\"],\n    entities: [],\n    entityAllowlist: [],\n    entityBlocklist: [],\n    aliases: {},\n    units: {},\n    stateFields: {\n        light: [\"brightness_pct\", \"color_temp_kelvin\", \"friendly_name\"],\n        switch: [\"friendly_name\"],\n        input_boolean: [\"friendly_name\"],\n        input_button: [\"friendly_name\"],\n        scene: [\"friendly_name\"],\n        sensor: [\"friendly_name\", \"unit_of_measurement\"],\n        cover: [\"current_position\", \"friendly_name\"],\n        fan: [\"percentage\", \"preset_mode\", \"friendly_name\"],\n        climate: [\"current_temperature\", \"target_temperature\", \"hvac_mode\", \"hvac_action\", \"fan_mode\", \"preset_mode\", \"friendly_name\"]\n    },\n    retain: { meta: true, state: true, availability: true, ack: false, result: false }\n};\nconst config = { ...DEFAULT_CONFIG, ...(flow.get(\"gatewayConfig\") || {}) };\nconfig.retain = { ...DEFAULT_CONFIG.retain, ...(config.retain || {}) };\nconfig.stateFields = { ...DEFAULT_CONFIG.stateFields, ...(config.stateFields || {}) };\nfunction splitEntityId(entityId) {\n    const parts = String(entityId || \"\").split(\".\");\n    if (parts.length < 2 || !parts[0] || !parts.slice(1).join(\".\")) throw new Error(\"Invalid entity_id: \" + entityId);\n    return { domain: parts[0], objectId: parts.slice(1).join(\".\") };\n}\nfunction exposed(entityId) {\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.exposureMode === \"manual\") {\n        return config.entities.some((entity) => entity.entity_id === entityId && entity.enabled !== false);\n    }\n    if (config.exposureMode !== \"domains\") return false;\n    const { domain } = splitEntityId(entityId);\n    if (!config.coreDomains.includes(domain)) return false;\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.entityAllowlist.length > 0) return config.entityAllowlist.includes(entityId);\n    return true;\n}\nfunction baseTopic(entityId) {\n    if (config.topicMode === \"entity_id\") {\n        return config.topicPrefix + \"/\" + config.site + \"/entity/\" + entityId;\n    }\n    const { domain, objectId } = splitEntityId(entityId);\n    const entityConfig = getEntityConfig(entityId);\n    const slug = entityConfig && entityConfig.topic ? entityConfig.topic : (config.aliases[entityId] || objectId);\n    return config.topicPrefix + \"/\" + config.site + \"/\" + domain + \"/\" + slug;\n}\nfunction getEntityConfig(entityId) {\n    return (config.entities || []).find((entity) => entity.entity_id === entityId && entity.enabled !== false) || null;\n}\nfunction commandsForDomain(domain) {\n    if (domain === \"light\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"switch\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"input_boolean\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"cover\") return [\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"];\n    if (domain === \"fan\") return [\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"];\n    if (domain === \"input_button\") return [\"press\"];\n    if (domain === \"scene\") return [\"turn_on\"];\n    if (domain === \"climate\") return [\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"];\n    return [];\n}\nfunction assertCommandAllowed(entityId, command) {\n    if (!exposed(entityId)) throw new Error(\"Entity is not exposed: \" + entityId);\n    const { domain } = splitEntityId(entityId);\n    const entity = getEntityConfig(entityId);\n    const writable = entity && entity.writable !== undefined ? entity.writable : config.writableDomains.includes(domain);\n    if (!writable) throw new Error(\"Entity is read-only: \" + entityId);\n    const allowed = (entity && entity.commands) || commandsForDomain(domain);\n    if (!allowed.includes(command) || !commandsForDomain(domain).includes(command)) throw new Error(\"Command is not allowed: \" + command);\n}\nfunction metaPayload(state) {\n    const entityId = state.entity_id;\n    const { domain, objectId } = splitEntityId(entityId);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(entityId);\n    const writable = entityConfig && entityConfig.writable !== undefined ? entityConfig.writable : config.writableDomains.includes(domain);\n    return {\n        entity_id: entityId,\n        domain,\n        object_id: objectId,\n        topic_base: baseTopic(entityId),\n        name: (entityConfig && entityConfig.name) || attributes.friendly_name || entityId,\n        writable,\n        unit_of_measurement: config.units[entityId] || attributes.unit_of_measurement || null,\n        device_class: attributes.device_class || null,\n        state_class: attributes.state_class || null,\n        supported_features: attributes.supported_features || 0,\n        commands: writable ? ((entityConfig && entityConfig.commands) || commandsForDomain(domain)).filter(command => commandsForDomain(domain).includes(command)) : []\n    };\n}\nfunction statePayload(state) {\n    const { domain } = splitEntityId(state.entity_id);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(state.entity_id);\n    const fields = (entityConfig && entityConfig.state_fields) || config.stateFields[domain];\n    const selected = {};\n    if (fields) {\n        fields.forEach((field) => {\n            if (field === \"brightness_pct\") {\n                selected[field] = attributes.brightness === undefined || attributes.brightness === null\n                    ? null\n                    : Math.round((Number(attributes.brightness) / 255) * 100);\n            } else if (field === \"target_temperature\") {\n                selected[field] = attributes.temperature === undefined ? null : attributes.temperature;\n            } else if (field === \"hvac_mode\") {\n                selected[field] = state.state === undefined ? null : state.state;\n            } else {\n                selected[field] = attributes[field] === undefined ? null : attributes[field];\n            }\n        });\n    } else {\n        Object.assign(selected, attributes);\n    }\n    return {\n        entity_id: state.entity_id,\n        state: state.state,\n        ...selected,\n        unit_of_measurement: config.units[state.entity_id] || attributes.unit_of_measurement || null,\n        last_changed: state.last_changed || null,\n        last_updated: state.last_updated || null,\n        updated_at: new Date().toISOString()\n    };\n}\nfunction availabilityPayload(state) {\n    return state && state.state !== \"unavailable\" ? \"online\" : \"offline\";\n}\nfunction resultPayload(requestId, entityId, status, extra) {\n    return { request_id: requestId, entity_id: entityId, status, ts: new Date().toISOString(), ...(extra || {}) };\n}\nfunction filterDefined(value) {\n    const out = {};\n    Object.keys(value).forEach((key) => {\n        if (value[key] !== undefined) out[key] = value[key];\n    });\n    return out;\n}\nfunction validateRange(value, name, min, max) {\n    if (value === undefined) return;\n    if (typeof value !== \"number\" || !Number.isFinite(value) || value < min || value > max) throw new Error(name + \" must be a number between \" + min + \" and \" + max);\n}\nfunction buildServiceCall(entityId, command, params) {\n    const { domain } = splitEntityId(entityId);\n    params = params || {};\n    if (domain === \"light\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported light command: \" + command);\n        const data = filterDefined({ entity_id: entityId, brightness: params.brightness, brightness_pct: params.brightness_pct, color_temp_kelvin: params.color_temp_kelvin, rgb_color: params.rgb_color, transition: params.transition });\n        validateRange(data.brightness, \"brightness\", 0, 255);\n        validateRange(data.brightness_pct, \"brightness_pct\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"switch\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported switch command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"input_boolean\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported input_boolean command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"cover\") {\n        if (![\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"].includes(command)) throw new Error(\"Unsupported cover command: \" + command);\n        const data = filterDefined({ entity_id: entityId, position: params.position });\n        validateRange(data.position, \"position\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"fan\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"].includes(command)) throw new Error(\"Unsupported fan command: \" + command);\n        const data = filterDefined({ entity_id: entityId, percentage: params.percentage, preset_mode: params.preset_mode });\n        validateRange(data.percentage, \"percentage\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"input_button\") {\n        if (command !== \"press\") throw new Error(\"Unsupported input_button command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"scene\") {\n        if (command !== \"turn_on\") throw new Error(\"Unsupported scene command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"climate\") {\n        if (![\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"].includes(command)) throw new Error(\"Unsupported climate command: \" + command);\n        return { domain, service: command, data: filterDefined({ entity_id: entityId, temperature: params.temperature, target_temp_high: params.target_temp_high, target_temp_low: params.target_temp_low, hvac_mode: params.hvac_mode, preset_mode: params.preset_mode, fan_mode: params.fan_mode }) };\n    }\n    throw new Error(domain + \" is read-only or unsupported for commands\");\n}\n\nfunction entityFromTopic(topic) {\n    const parts = String(topic || \"\").split(\"/\");\n    if (config.topicMode === \"entity_id\") {\n        if (parts.length !== 5) throw new Error(\"Topic must match gw/{site}/entity/{entity_id}/set\");\n        const [prefix, site, marker, entityId, suffix] = parts;\n        if (prefix !== config.topicPrefix || site !== config.site || marker !== \"entity\" || suffix !== \"set\") throw new Error(\"Topic is outside this gateway namespace\");\n        return entityId;\n    }\n    if (parts.length !== 5) throw new Error(\"Topic must match gw/{site}/{domain}/{object_id}/set\");\n    const [prefix, site, domain, objectId, suffix] = parts;\n    if (prefix !== config.topicPrefix || site !== config.site || suffix !== \"set\") throw new Error(\"Topic is outside this gateway namespace\");\n    const configured = (config.entities || []).find((entity) => {\n        if (entity.enabled === false) return false;\n        const parsed = splitEntityId(entity.entity_id);\n        return parsed.domain === domain && (entity.topic || parsed.objectId) === objectId;\n    });\n    if (configured) return configured.entity_id;\n    const aliases = config.aliases || {};\n    const aliasMatch = Object.keys(aliases).find((entityId) => aliases[entityId] === objectId && entityId.startsWith(domain + \".\"));\n    return aliasMatch || domain + \".\" + objectId;\n}\nfunction parsePayload(payload) {\n    const body = typeof payload === \"string\" ? JSON.parse(payload) : payload;\n    if (!body || typeof body !== \"object\" || Array.isArray(body)) throw new Error(\"Payload must be a JSON object\");\n    if (!body.request_id || typeof body.request_id !== \"string\") throw new Error(\"request_id is required and must be a string\");\n    if (!body.command || typeof body.command !== \"string\") throw new Error(\"command is required and must be a string\");\n    if (body.params !== undefined && (!body.params || typeof body.params !== \"object\" || Array.isArray(body.params))) throw new Error(\"params must be an object\");\n    return { request_id: body.request_id, command: body.command, params: body.params && typeof body.params === \"object\" ? body.params : {} };\n}\nconst topicParts = String(msg.topic || \"\").split(\"/\");\nif (topicParts[0] !== config.topicPrefix || topicParts[1] !== config.site) return null;\nlet requestId = \"unknown\";\ntry {\n    const body = typeof msg.payload === \"string\" ? JSON.parse(msg.payload) : msg.payload;\n    if (body && typeof body.request_id === \"string\") requestId = body.request_id;\n} catch (_) {}\ntry {\n    const entityId = entityFromTopic(msg.topic);\n    if (msg.retain === true) throw new Error(\"Retained commands are not accepted\");\n    if (!exposed(entityId)) throw new Error(\"Entity is not exposed: \" + entityId);\n    const command = parsePayload(msg.payload);\n    assertCommandAllowed(entityId, command.command);\n    const serviceCall = buildServiceCall(entityId, command.command, command.params);\n    msg.gateway = { request_id: command.request_id, entity_id: entityId, received_topic: msg.topic };\n    const ack = {\n        topic: baseTopic(entityId) + \"/ack\",\n        payload: resultPayload(command.request_id, entityId, \"accepted\", { command: command.command }),\n        retain: config.retain.ack,\n        qos: 1\n    };\n    const service = {\n        payload: {\n            action: serviceCall.domain + \".\" + serviceCall.service,\n            target: { entity_id: [entityId] },\n            data: { ...serviceCall.data }\n        },\n        domain: serviceCall.domain,\n        service: serviceCall.service,\n        data: serviceCall.data,\n        gateway: msg.gateway\n    };\n    delete service.payload.data.entity_id;\n    return [ack, service, null];\n} catch (error) {\n    const fallbackEntity = (() => {\n        try { return entityFromTopic(msg.topic); } catch (_) { return \"unknown.unknown\"; }\n    })();\n    const topicBase = fallbackEntity === \"unknown.unknown\" ? config.topicPrefix + \"/\" + config.site + \"/gateway/command\" : baseTopic(fallbackEntity);\n    return [null, null, {\n        topic: topicBase + \"/result\",\n        payload: resultPayload(requestId, fallbackEntity, \"error\", { error: error.message }),\n        retain: config.retain.result,\n        qos: 1\n    }];\n}",
+    "outputs": 3,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 490,
+    "y": 520,
+    "wires": [
+      [
+        "mqtt_ack"
+      ],
+      [
+        "ha_call_service"
+      ],
+      [
+        "mqtt_result_error"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_ack",
+    "type": "mqtt out",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Publish ack",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "broker": "mqtt_broker_local",
+    "x": 790,
+    "y": 480,
+    "wires": []
+  },
+  {
+    "id": "ha_call_service",
+    "type": "api-call-service",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Call HA service",
+    "server": "ha_server_local",
+    "version": 7,
+    "debugenabled": false,
+    "action": "",
+    "floorId": [],
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "labelId": [],
+    "data": "",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "blockInputOverrides": false,
+    "domain": "",
+    "service": "",
+    "x": 790,
+    "y": 540,
+    "wires": [
+      [
+        "fn_service_success"
+      ]
+    ]
+  },
+  {
+    "id": "fn_service_success",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Build success result",
+    "func": "\nconst DEFAULT_CONFIG = {\n    site: \"home\",\n    topicPrefix: \"gw\",\n    exposureMode: \"manual\",\n    topicMode: \"entity_id\",\n    coreDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"sensor\", \"switch\"],\n    writableDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"switch\"],\n    entities: [],\n    entityAllowlist: [],\n    entityBlocklist: [],\n    aliases: {},\n    units: {},\n    stateFields: {\n        light: [\"brightness_pct\", \"color_temp_kelvin\", \"friendly_name\"],\n        switch: [\"friendly_name\"],\n        input_boolean: [\"friendly_name\"],\n        input_button: [\"friendly_name\"],\n        scene: [\"friendly_name\"],\n        sensor: [\"friendly_name\", \"unit_of_measurement\"],\n        cover: [\"current_position\", \"friendly_name\"],\n        fan: [\"percentage\", \"preset_mode\", \"friendly_name\"],\n        climate: [\"current_temperature\", \"target_temperature\", \"hvac_mode\", \"hvac_action\", \"fan_mode\", \"preset_mode\", \"friendly_name\"]\n    },\n    retain: { meta: true, state: true, availability: true, ack: false, result: false }\n};\nconst config = { ...DEFAULT_CONFIG, ...(flow.get(\"gatewayConfig\") || {}) };\nconfig.retain = { ...DEFAULT_CONFIG.retain, ...(config.retain || {}) };\nconfig.stateFields = { ...DEFAULT_CONFIG.stateFields, ...(config.stateFields || {}) };\nfunction splitEntityId(entityId) {\n    const parts = String(entityId || \"\").split(\".\");\n    if (parts.length < 2 || !parts[0] || !parts.slice(1).join(\".\")) throw new Error(\"Invalid entity_id: \" + entityId);\n    return { domain: parts[0], objectId: parts.slice(1).join(\".\") };\n}\nfunction exposed(entityId) {\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.exposureMode === \"manual\") {\n        return config.entities.some((entity) => entity.entity_id === entityId && entity.enabled !== false);\n    }\n    if (config.exposureMode !== \"domains\") return false;\n    const { domain } = splitEntityId(entityId);\n    if (!config.coreDomains.includes(domain)) return false;\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.entityAllowlist.length > 0) return config.entityAllowlist.includes(entityId);\n    return true;\n}\nfunction baseTopic(entityId) {\n    if (config.topicMode === \"entity_id\") {\n        return config.topicPrefix + \"/\" + config.site + \"/entity/\" + entityId;\n    }\n    const { domain, objectId } = splitEntityId(entityId);\n    const entityConfig = getEntityConfig(entityId);\n    const slug = entityConfig && entityConfig.topic ? entityConfig.topic : (config.aliases[entityId] || objectId);\n    return config.topicPrefix + \"/\" + config.site + \"/\" + domain + \"/\" + slug;\n}\nfunction getEntityConfig(entityId) {\n    return (config.entities || []).find((entity) => entity.entity_id === entityId && entity.enabled !== false) || null;\n}\nfunction commandsForDomain(domain) {\n    if (domain === \"light\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"switch\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"input_boolean\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"cover\") return [\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"];\n    if (domain === \"fan\") return [\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"];\n    if (domain === \"input_button\") return [\"press\"];\n    if (domain === \"scene\") return [\"turn_on\"];\n    if (domain === \"climate\") return [\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"];\n    return [];\n}\nfunction assertCommandAllowed(entityId, command) {\n    if (!exposed(entityId)) throw new Error(\"Entity is not exposed: \" + entityId);\n    const { domain } = splitEntityId(entityId);\n    const entity = getEntityConfig(entityId);\n    const writable = entity && entity.writable !== undefined ? entity.writable : config.writableDomains.includes(domain);\n    if (!writable) throw new Error(\"Entity is read-only: \" + entityId);\n    const allowed = (entity && entity.commands) || commandsForDomain(domain);\n    if (!allowed.includes(command) || !commandsForDomain(domain).includes(command)) throw new Error(\"Command is not allowed: \" + command);\n}\nfunction metaPayload(state) {\n    const entityId = state.entity_id;\n    const { domain, objectId } = splitEntityId(entityId);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(entityId);\n    const writable = entityConfig && entityConfig.writable !== undefined ? entityConfig.writable : config.writableDomains.includes(domain);\n    return {\n        entity_id: entityId,\n        domain,\n        object_id: objectId,\n        topic_base: baseTopic(entityId),\n        name: (entityConfig && entityConfig.name) || attributes.friendly_name || entityId,\n        writable,\n        unit_of_measurement: config.units[entityId] || attributes.unit_of_measurement || null,\n        device_class: attributes.device_class || null,\n        state_class: attributes.state_class || null,\n        supported_features: attributes.supported_features || 0,\n        commands: writable ? ((entityConfig && entityConfig.commands) || commandsForDomain(domain)).filter(command => commandsForDomain(domain).includes(command)) : []\n    };\n}\nfunction statePayload(state) {\n    const { domain } = splitEntityId(state.entity_id);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(state.entity_id);\n    const fields = (entityConfig && entityConfig.state_fields) || config.stateFields[domain];\n    const selected = {};\n    if (fields) {\n        fields.forEach((field) => {\n            if (field === \"brightness_pct\") {\n                selected[field] = attributes.brightness === undefined || attributes.brightness === null\n                    ? null\n                    : Math.round((Number(attributes.brightness) / 255) * 100);\n            } else if (field === \"target_temperature\") {\n                selected[field] = attributes.temperature === undefined ? null : attributes.temperature;\n            } else if (field === \"hvac_mode\") {\n                selected[field] = state.state === undefined ? null : state.state;\n            } else {\n                selected[field] = attributes[field] === undefined ? null : attributes[field];\n            }\n        });\n    } else {\n        Object.assign(selected, attributes);\n    }\n    return {\n        entity_id: state.entity_id,\n        state: state.state,\n        ...selected,\n        unit_of_measurement: config.units[state.entity_id] || attributes.unit_of_measurement || null,\n        last_changed: state.last_changed || null,\n        last_updated: state.last_updated || null,\n        updated_at: new Date().toISOString()\n    };\n}\nfunction availabilityPayload(state) {\n    return state && state.state !== \"unavailable\" ? \"online\" : \"offline\";\n}\nfunction resultPayload(requestId, entityId, status, extra) {\n    return { request_id: requestId, entity_id: entityId, status, ts: new Date().toISOString(), ...(extra || {}) };\n}\nfunction filterDefined(value) {\n    const out = {};\n    Object.keys(value).forEach((key) => {\n        if (value[key] !== undefined) out[key] = value[key];\n    });\n    return out;\n}\nfunction validateRange(value, name, min, max) {\n    if (value === undefined) return;\n    if (typeof value !== \"number\" || !Number.isFinite(value) || value < min || value > max) throw new Error(name + \" must be a number between \" + min + \" and \" + max);\n}\nfunction buildServiceCall(entityId, command, params) {\n    const { domain } = splitEntityId(entityId);\n    params = params || {};\n    if (domain === \"light\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported light command: \" + command);\n        const data = filterDefined({ entity_id: entityId, brightness: params.brightness, brightness_pct: params.brightness_pct, color_temp_kelvin: params.color_temp_kelvin, rgb_color: params.rgb_color, transition: params.transition });\n        validateRange(data.brightness, \"brightness\", 0, 255);\n        validateRange(data.brightness_pct, \"brightness_pct\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"switch\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported switch command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"input_boolean\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported input_boolean command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"cover\") {\n        if (![\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"].includes(command)) throw new Error(\"Unsupported cover command: \" + command);\n        const data = filterDefined({ entity_id: entityId, position: params.position });\n        validateRange(data.position, \"position\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"fan\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"].includes(command)) throw new Error(\"Unsupported fan command: \" + command);\n        const data = filterDefined({ entity_id: entityId, percentage: params.percentage, preset_mode: params.preset_mode });\n        validateRange(data.percentage, \"percentage\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"input_button\") {\n        if (command !== \"press\") throw new Error(\"Unsupported input_button command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"scene\") {\n        if (command !== \"turn_on\") throw new Error(\"Unsupported scene command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"climate\") {\n        if (![\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"].includes(command)) throw new Error(\"Unsupported climate command: \" + command);\n        return { domain, service: command, data: filterDefined({ entity_id: entityId, temperature: params.temperature, target_temp_high: params.target_temp_high, target_temp_low: params.target_temp_low, hvac_mode: params.hvac_mode, preset_mode: params.preset_mode, fan_mode: params.fan_mode }) };\n    }\n    throw new Error(domain + \" is read-only or unsupported for commands\");\n}\n\nif (!msg.gateway) return null;\nreturn {\n    topic: baseTopic(msg.gateway.entity_id) + \"/result\",\n    payload: resultPayload(msg.gateway.request_id, msg.gateway.entity_id, \"success\"),\n    retain: config.retain.result,\n    qos: 1\n};",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1020,
+    "y": 540,
+    "wires": [
+      [
+        "mqtt_result_success"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_result_success",
+    "type": "mqtt out",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Publish success result",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "broker": "mqtt_broker_local",
+    "x": 1260,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "catch_service_error",
+    "type": "catch",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Catch HA service errors",
+    "scope": [
+      "ha_call_service"
+    ],
+    "uncaught": false,
+    "x": 780,
+    "y": 620,
+    "wires": [
+      [
+        "fn_service_error"
+      ]
+    ]
+  },
+  {
+    "id": "fn_service_error",
+    "type": "function",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Build service error result",
+    "func": "\nconst DEFAULT_CONFIG = {\n    site: \"home\",\n    topicPrefix: \"gw\",\n    exposureMode: \"manual\",\n    topicMode: \"entity_id\",\n    coreDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"sensor\", \"switch\"],\n    writableDomains: [\"climate\", \"cover\", \"fan\", \"input_button\", \"light\", \"scene\", \"switch\"],\n    entities: [],\n    entityAllowlist: [],\n    entityBlocklist: [],\n    aliases: {},\n    units: {},\n    stateFields: {\n        light: [\"brightness_pct\", \"color_temp_kelvin\", \"friendly_name\"],\n        switch: [\"friendly_name\"],\n        input_boolean: [\"friendly_name\"],\n        input_button: [\"friendly_name\"],\n        scene: [\"friendly_name\"],\n        sensor: [\"friendly_name\", \"unit_of_measurement\"],\n        cover: [\"current_position\", \"friendly_name\"],\n        fan: [\"percentage\", \"preset_mode\", \"friendly_name\"],\n        climate: [\"current_temperature\", \"target_temperature\", \"hvac_mode\", \"hvac_action\", \"fan_mode\", \"preset_mode\", \"friendly_name\"]\n    },\n    retain: { meta: true, state: true, availability: true, ack: false, result: false }\n};\nconst config = { ...DEFAULT_CONFIG, ...(flow.get(\"gatewayConfig\") || {}) };\nconfig.retain = { ...DEFAULT_CONFIG.retain, ...(config.retain || {}) };\nconfig.stateFields = { ...DEFAULT_CONFIG.stateFields, ...(config.stateFields || {}) };\nfunction splitEntityId(entityId) {\n    const parts = String(entityId || \"\").split(\".\");\n    if (parts.length < 2 || !parts[0] || !parts.slice(1).join(\".\")) throw new Error(\"Invalid entity_id: \" + entityId);\n    return { domain: parts[0], objectId: parts.slice(1).join(\".\") };\n}\nfunction exposed(entityId) {\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.exposureMode === \"manual\") {\n        return config.entities.some((entity) => entity.entity_id === entityId && entity.enabled !== false);\n    }\n    if (config.exposureMode !== \"domains\") return false;\n    const { domain } = splitEntityId(entityId);\n    if (!config.coreDomains.includes(domain)) return false;\n    if (config.entityBlocklist.includes(entityId)) return false;\n    if (config.entityAllowlist.length > 0) return config.entityAllowlist.includes(entityId);\n    return true;\n}\nfunction baseTopic(entityId) {\n    if (config.topicMode === \"entity_id\") {\n        return config.topicPrefix + \"/\" + config.site + \"/entity/\" + entityId;\n    }\n    const { domain, objectId } = splitEntityId(entityId);\n    const entityConfig = getEntityConfig(entityId);\n    const slug = entityConfig && entityConfig.topic ? entityConfig.topic : (config.aliases[entityId] || objectId);\n    return config.topicPrefix + \"/\" + config.site + \"/\" + domain + \"/\" + slug;\n}\nfunction getEntityConfig(entityId) {\n    return (config.entities || []).find((entity) => entity.entity_id === entityId && entity.enabled !== false) || null;\n}\nfunction commandsForDomain(domain) {\n    if (domain === \"light\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"switch\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"input_boolean\") return [\"turn_on\", \"turn_off\", \"toggle\"];\n    if (domain === \"cover\") return [\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"];\n    if (domain === \"fan\") return [\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"];\n    if (domain === \"input_button\") return [\"press\"];\n    if (domain === \"scene\") return [\"turn_on\"];\n    if (domain === \"climate\") return [\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"];\n    return [];\n}\nfunction assertCommandAllowed(entityId, command) {\n    if (!exposed(entityId)) throw new Error(\"Entity is not exposed: \" + entityId);\n    const { domain } = splitEntityId(entityId);\n    const entity = getEntityConfig(entityId);\n    const writable = entity && entity.writable !== undefined ? entity.writable : config.writableDomains.includes(domain);\n    if (!writable) throw new Error(\"Entity is read-only: \" + entityId);\n    const allowed = (entity && entity.commands) || commandsForDomain(domain);\n    if (!allowed.includes(command) || !commandsForDomain(domain).includes(command)) throw new Error(\"Command is not allowed: \" + command);\n}\nfunction metaPayload(state) {\n    const entityId = state.entity_id;\n    const { domain, objectId } = splitEntityId(entityId);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(entityId);\n    const writable = entityConfig && entityConfig.writable !== undefined ? entityConfig.writable : config.writableDomains.includes(domain);\n    return {\n        entity_id: entityId,\n        domain,\n        object_id: objectId,\n        topic_base: baseTopic(entityId),\n        name: (entityConfig && entityConfig.name) || attributes.friendly_name || entityId,\n        writable,\n        unit_of_measurement: config.units[entityId] || attributes.unit_of_measurement || null,\n        device_class: attributes.device_class || null,\n        state_class: attributes.state_class || null,\n        supported_features: attributes.supported_features || 0,\n        commands: writable ? ((entityConfig && entityConfig.commands) || commandsForDomain(domain)).filter(command => commandsForDomain(domain).includes(command)) : []\n    };\n}\nfunction statePayload(state) {\n    const { domain } = splitEntityId(state.entity_id);\n    const attributes = state.attributes || {};\n    const entityConfig = getEntityConfig(state.entity_id);\n    const fields = (entityConfig && entityConfig.state_fields) || config.stateFields[domain];\n    const selected = {};\n    if (fields) {\n        fields.forEach((field) => {\n            if (field === \"brightness_pct\") {\n                selected[field] = attributes.brightness === undefined || attributes.brightness === null\n                    ? null\n                    : Math.round((Number(attributes.brightness) / 255) * 100);\n            } else if (field === \"target_temperature\") {\n                selected[field] = attributes.temperature === undefined ? null : attributes.temperature;\n            } else if (field === \"hvac_mode\") {\n                selected[field] = state.state === undefined ? null : state.state;\n            } else {\n                selected[field] = attributes[field] === undefined ? null : attributes[field];\n            }\n        });\n    } else {\n        Object.assign(selected, attributes);\n    }\n    return {\n        entity_id: state.entity_id,\n        state: state.state,\n        ...selected,\n        unit_of_measurement: config.units[state.entity_id] || attributes.unit_of_measurement || null,\n        last_changed: state.last_changed || null,\n        last_updated: state.last_updated || null,\n        updated_at: new Date().toISOString()\n    };\n}\nfunction availabilityPayload(state) {\n    return state && state.state !== \"unavailable\" ? \"online\" : \"offline\";\n}\nfunction resultPayload(requestId, entityId, status, extra) {\n    return { request_id: requestId, entity_id: entityId, status, ts: new Date().toISOString(), ...(extra || {}) };\n}\nfunction filterDefined(value) {\n    const out = {};\n    Object.keys(value).forEach((key) => {\n        if (value[key] !== undefined) out[key] = value[key];\n    });\n    return out;\n}\nfunction validateRange(value, name, min, max) {\n    if (value === undefined) return;\n    if (typeof value !== \"number\" || !Number.isFinite(value) || value < min || value > max) throw new Error(name + \" must be a number between \" + min + \" and \" + max);\n}\nfunction buildServiceCall(entityId, command, params) {\n    const { domain } = splitEntityId(entityId);\n    params = params || {};\n    if (domain === \"light\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported light command: \" + command);\n        const data = filterDefined({ entity_id: entityId, brightness: params.brightness, brightness_pct: params.brightness_pct, color_temp_kelvin: params.color_temp_kelvin, rgb_color: params.rgb_color, transition: params.transition });\n        validateRange(data.brightness, \"brightness\", 0, 255);\n        validateRange(data.brightness_pct, \"brightness_pct\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"switch\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported switch command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"input_boolean\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\"].includes(command)) throw new Error(\"Unsupported input_boolean command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"cover\") {\n        if (![\"open_cover\", \"close_cover\", \"stop_cover\", \"set_cover_position\"].includes(command)) throw new Error(\"Unsupported cover command: \" + command);\n        const data = filterDefined({ entity_id: entityId, position: params.position });\n        validateRange(data.position, \"position\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"fan\") {\n        if (![\"turn_on\", \"turn_off\", \"toggle\", \"set_percentage\", \"set_preset_mode\"].includes(command)) throw new Error(\"Unsupported fan command: \" + command);\n        const data = filterDefined({ entity_id: entityId, percentage: params.percentage, preset_mode: params.preset_mode });\n        validateRange(data.percentage, \"percentage\", 0, 100);\n        return { domain, service: command, data };\n    }\n    if (domain === \"input_button\") {\n        if (command !== \"press\") throw new Error(\"Unsupported input_button command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"scene\") {\n        if (command !== \"turn_on\") throw new Error(\"Unsupported scene command: \" + command);\n        return { domain, service: command, data: { entity_id: entityId } };\n    }\n    if (domain === \"climate\") {\n        if (![\"set_temperature\", \"set_hvac_mode\", \"set_preset_mode\", \"set_fan_mode\", \"turn_on\", \"turn_off\"].includes(command)) throw new Error(\"Unsupported climate command: \" + command);\n        return { domain, service: command, data: filterDefined({ entity_id: entityId, temperature: params.temperature, target_temp_high: params.target_temp_high, target_temp_low: params.target_temp_low, hvac_mode: params.hvac_mode, preset_mode: params.preset_mode, fan_mode: params.fan_mode }) };\n    }\n    throw new Error(domain + \" is read-only or unsupported for commands\");\n}\n\nconst source = msg.error && msg.error.source ? msg.error.source : {};\nconst original = msg.error && msg.error.message ? msg.error.message : \"HA service call failed\";\nconst gateway = msg.gateway || (msg._msg && msg._msg.gateway) || {};\nif (!gateway.entity_id) return null;\nreturn {\n    topic: baseTopic(gateway.entity_id) + \"/result\",\n    payload: resultPayload(gateway.request_id || \"unknown\", gateway.entity_id, \"error\", { error: original, source }),\n    retain: config.retain.result,\n    qos: 1\n};",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1030,
+    "y": 620,
+    "wires": [
+      [
+        "mqtt_result_error"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_result_error",
+    "type": "mqtt out",
+    "z": "ha_mqtt_gateway_tab",
+    "name": "Publish error result",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "broker": "mqtt_broker_local",
+    "x": 1260,
+    "y": 620,
+    "wires": []
+  }
+]
